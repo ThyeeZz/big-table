@@ -100,7 +100,7 @@ export default {
     },
     isTreeTable: {
       type: Boolean,
-      default: true,
+      default: false,
     },
   },
   data() {

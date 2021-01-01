@@ -8,6 +8,7 @@ export const readme = `
 <p>cutLen      | 每一页展示条数                   | Number   | 100</p>
 <p>maxHeight   | 最高高度，如果需要滚动请传此参数  | Number   | 600</p>
 <p>isBigTable  | 是否展示为BigTable               | Boolean  | true</p>
+<p>isTreeTable | 是否展示为树形结构table,使用树形必传           | Boolean  | false</p>
 <hr />
 <p>Table-Column Attributes</p>
 <p>兼容 el-table 所有参数，如果与el-table-colunm重复可能产生bug，建议只使用简单参数，例如：border,stripe 等等</p>
