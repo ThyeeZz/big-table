@@ -6,11 +6,7 @@
       v-virturScroll
       ref="wrapper"
     >
-      <el-table
-        :data="renderData"
-        style="width: 100%;"
-        v-bind="$attrs"
-      >
+      <el-table :data="renderData" style="width: 100%" v-bind="$attrs">
         <el-table-column
           v-for="item in headData"
           :key="item.prop"
@@ -57,6 +53,28 @@ export default {
           false
         );
       },
+      unbind(el, binding, VNode) {
+        e.removeEventListener(
+          "scroll",
+          () => {
+            const [scrollHeight, height] = [
+              el.scrollHeight,
+              parseInt(getComputedStyle(el).height),
+            ];
+            const scrollBottom = scrollHeight - el.scrollTop;
+            if (
+              VNode.context.index < VNode.context.CUT_DATA.length - 1 &&
+              VNode.context.isBigTable
+            ) {
+              if (scrollBottom < height + 100) {
+                VNode.context.concatData();
+                el.scrollTop = scrollHeight - 710;
+              }
+            }
+          },
+          false
+        );
+      },
     },
   },
   props: {
@@ -80,6 +98,10 @@ export default {
       type: Boolean,
       default: true,
     },
+    isTreeTable: {
+      type: Boolean,
+      default: true,
+    },
   },
   data() {
     return {
@@ -96,8 +118,33 @@ export default {
   },
   watch: {
     tableData(val) {
-      this.CUT_DATA = this.cut(this.tableData, this.cutLen);
-      this.renderData = this.CUT_DATA[0];
+      if (!this.isBigTable) {
+        // 不切割按照正常table 渲染全部数据
+        this.renderData = this.tableData;
+        return;
+      }
+      if (!this.isTreeTable) {
+        // 非树形结构，正常切割
+        this.CUT_DATA = this.cut(this.tableData, this.cutLen);
+        this.renderData = this.CUT_DATA[0];
+        return;
+      }
+      // 树形结构，先转为一维数组进行切割，再转为多维树形结构拼接
+      this.CUT_DATA = this.cut(
+        this._turnToFlatArray(this.tableData, {
+          idLabel: "AreaId",
+          pidLabel: "PId",
+          childrenLabel: "Datas",
+        }),
+        this.cutLen
+      );
+      console.table(this.CUT_DATA[0]);
+      this.renderData = this._turnToTreeArray(this.CUT_DATA[0], {
+        idLabel: "AreaId",
+        pidLabel: "PId",
+        childrenLabel: "Datas",
+      });
+      return;
     },
   },
   methods: {
@@ -112,10 +159,61 @@ export default {
     concatData() {
       const { renderData, CUT_DATA } = this;
       this.index++;
-      this.renderData = renderData.concat(CUT_DATA[this.index]);
+      if (!this.isTreeTable) {
+        // 非 树形结构处理
+        this.renderData = renderData.concat(CUT_DATA[this.index]);
+        return;
+      }
+      // 树形结构处理
+      let temp = [];
+      for (let i = 0; i < this.index; i++) {
+        temp = temp.concat(CUT_DATA[i]);
+      }
+      this.renderData = renderData.concat(
+        this._turnToTreeArray(temp, {
+          idLabel: "AreaId",
+          pidLabel: "PId",
+          childrenLabel: "Datas",
+        })
+      );
     },
     goTop() {
       this.$refs.wrapper.scrollTop = "0px";
+    },
+    _turnToFlatArray(arr, { idLabel, pidLabel, childrenLabel }) {
+      let temp = (function flat(arr) {
+        return arr.reduce((pre, cur) => {
+          if (cur[childrenLabel] && cur[childrenLabel].length) {
+            let temp = flat(cur[childrenLabel]);
+            delete cur[childrenLabel];
+            pre = pre.concat(temp);
+          }
+          pre = pre.concat(cur);
+          return pre;
+        }, []);
+      })(arr);
+      temp.sort((a, b) => a[idLabel] - b[idLabel]);
+      return temp;
+    },
+    _turnToTreeArray(arr, { idLabel, pidLabel, childrenLabel }) {
+      const [result, dataCopy] = [[], arr.slice()];
+
+      function getChildrenDeeply(arr, id) {
+        const children = arr.filter((item) => item[pidLabel] == id);
+        if (children && children.length) {
+          children.forEach((subItem) => {
+            subItem[childrenLabel] = getChildrenDeeply(arr, subItem[idLabel]);
+          });
+        }
+        return children;
+      }
+      dataCopy.forEach((item) => {
+        if (item[pidLabel] == 0) {
+          item[childrenLabel] = getChildrenDeeply(arr, item[idLabel]);
+          result.push(item);
+        }
+      });
+      return result;
     },
   },
 };
